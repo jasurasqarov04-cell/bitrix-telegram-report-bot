@@ -1,10 +1,11 @@
 'use strict';
 
-var Telegraf      = require('telegraf').Telegraf;
-var axios         = require('axios');
-var config        = require('../config/config');
-var keyboards     = require('./keyboards');
-var reportService = require('../services/reportService');
+var Telegraf          = require('telegraf').Telegraf;
+var axios             = require('axios');
+var config            = require('../config/config');
+var keyboards         = require('./keyboards');
+var reportService     = require('../services/reportService');
+var dealReportService = require('../services/dealReportService');
 
 var bot = new Telegraf(config.bot.token);
 
@@ -13,6 +14,13 @@ function fmtDate(d) {
   return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) +
     ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
 }
+
+var PIPE_NAMES = {
+  '0':  '💼 Основная воронка',
+  '32': '🤝 Региональные менеджеры',
+  '54': '🌍 Экспорт',
+};
+var PIPE_IDS = ['0', '32', '54'];
 
 // ─── Универсальный обработчик отчётов ────────────────────────────────────────
 async function sendReport(ctx, generator, menuKeyboard) {
@@ -124,9 +132,21 @@ bot.action('MENU_CALLCENTER', async function(ctx) {
 bot.action('MENU_SALES', async function(ctx) {
   try { await ctx.answerCbQuery(); } catch(e) {}
   await ctx.reply(
-    '💼 *Отдел продаж*\nФункция в разработке.',
-    Object.assign({ parse_mode: 'Markdown' }, keyboards.startMenu)
+    '💼 *Отдел продаж* — сделки\nВыберите воронку:',
+    Object.assign({ parse_mode: 'Markdown' }, keyboards.salesMenu)
   );
+});
+
+// ─── Воронки ─────────────────────────────────────────────────────────────────
+PIPE_IDS.forEach(function(catId) {
+  bot.action('MENU_PIPE_' + catId, async function(ctx) {
+    try { await ctx.answerCbQuery(); } catch(e) {}
+    var name = PIPE_NAMES[catId] || 'Воронка ' + catId;
+    await ctx.reply(
+      name + '\nВыберите период:',
+      Object.assign({ parse_mode: 'Markdown' }, keyboards.pipelineMenu(catId))
+    );
+  });
 });
 
 // ─── Колл-центр кнопки ───────────────────────────────────────────────────────
@@ -163,6 +183,32 @@ bot.action('REPORT_REFRESH', async function(ctx) {
   await sendReport(ctx, function() {
     return reportService.generateReport(reportService.getTodayRange(), 'Сегодня (обновлено)');
   }, keyboards.callCenterMenu);
+});
+
+// ─── Отдел продаж кнопки ─────────────────────────────────────────────────────
+var PERIODS = {
+  TODAY:     function() { return { range: dealReportService.getTodayRange(),     label: 'Сегодня' }; },
+  WEEK:      function() { return { range: dealReportService.getWeekRange(),      label: 'Последние 7 дней' }; },
+  MONTH:     function() {
+    return { range: dealReportService.getThisMonthRange(),
+             label: 'Этот месяц — ' + new Date().toLocaleString('ru-RU', { month:'long', year:'numeric' }) };
+  },
+  LASTMONTH: function() {
+    var prev = new Date(); prev.setMonth(prev.getMonth()-1);
+    return { range: dealReportService.getLastMonthRange(),
+             label: 'Прошлый месяц — ' + prev.toLocaleString('ru-RU', { month:'long', year:'numeric' }) };
+  },
+};
+
+PIPE_IDS.forEach(function(catId) {
+  Object.keys(PERIODS).forEach(function(period) {
+    bot.action('PIPE_' + catId + '_' + period, async function(ctx) {
+      var p = PERIODS[period]();
+      await sendReport(ctx, function() {
+        return dealReportService.generatePipelineReport(parseInt(catId, 10), p.range, p.label);
+      }, keyboards.pipelineMenu(catId));
+    });
+  });
 });
 
 // ─── Ошибки ───────────────────────────────────────────────────────────────────
