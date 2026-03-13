@@ -1,13 +1,10 @@
 'use strict';
-
 require('dotenv').config();
-
-var express = require('express');
-var config  = require('./config/config');
-
-var botModule             = require('./telegram/bot');
-var bot                   = botModule.bot;
-var scheduleDailyReport   = require('./jobs/dailyReport').scheduleDailyReport;
+var express   = require('express');
+var config    = require('./config/config');
+var botModule = require('./telegram/bot');
+var bot       = botModule.bot;
+var dailyReport = require('./jobs/dailyReport');
 
 var app = express();
 app.use(express.json());
@@ -35,7 +32,7 @@ function start() {
 
   bot.launch().then(function() {
     console.log('[Бот] ✅ Telegram бот запущен');
-    scheduleDailyReport();
+    dailyReport.scheduleAll();
     console.log('\n🚀 Бот полностью работает. Ctrl+C для остановки.\n');
   }).catch(function(err) {
     console.error('[Бот] ❌ Ошибка запуска:', err.message);
