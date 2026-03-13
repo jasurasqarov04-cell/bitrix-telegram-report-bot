@@ -1,10 +1,11 @@
 'use strict';
 require('dotenv').config();
-var express   = require('express');
-var config    = require('./config/config');
-var botModule = require('./telegram/bot');
-var bot       = botModule.bot;
+var express     = require('express');
+var config      = require('./config/config');
+var botModule   = require('./telegram/bot');
+var bot         = botModule.bot;
 var dailyReport = require('./jobs/dailyReport');
+var keepAlive   = require('./keepalive');
 
 var app = express();
 app.use(express.json());
@@ -33,6 +34,12 @@ function start() {
   bot.launch().then(function() {
     console.log('[Бот] ✅ Telegram бот запущен');
     dailyReport.scheduleAll();
+
+    // Пингуем себя чтобы не засыпать на Render
+    var selfUrl = process.env.RENDER_EXTERNAL_URL || process.env.APP_URL || '';
+    if (selfUrl) keepAlive(selfUrl);
+    else console.log('[KeepAlive] Переменная RENDER_EXTERNAL_URL не задана, пинг отключён.');
+
     console.log('\n🚀 Бот полностью работает. Ctrl+C для остановки.\n');
   }).catch(function(err) {
     console.error('[Бот] ❌ Ошибка запуска:', err.message);
