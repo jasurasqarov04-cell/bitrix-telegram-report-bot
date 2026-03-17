@@ -1,30 +1,14 @@
-'use strict';
+const https = require('https');
 
-// ─── Пинг самого себя чтобы не засыпать на Render ────────────────────────────
-// Render усыпляет бесплатные сервисы после 15 минут неактивности.
-// Этот модуль пингует сам себя каждые 10 минут.
+const URL = 'https://bitrix-telegram-report-bot.onrender.com/webhook/health';
 
-var https = require('https');
-var http  = require('http');
+// Пингуем каждые 14 минут (Render засыпает через 15)
+setInterval(() => {
+  https.get(URL, (res) => {
+    console.log(`[Ping] ${new Date().toLocaleTimeString('ru-RU')} — статус: ${res.statusCode}`);
+  }).on('error', (err) => {
+    console.error(`[Ping] Ошибка:`, err.message);
+  });
+}, 14 * 60 * 1000);
 
-function keepAlive(url) {
-  if (!url) {
-    console.log('[KeepAlive] URL не задан, пропускаю.');
-    return;
-  }
-
-  setInterval(function() {
-    var lib = url.startsWith('https') ? https : http;
-    var req = lib.get(url + '/health', function(res) {
-      console.log('[KeepAlive] Пинг ' + url + '/health — статус: ' + res.statusCode);
-    });
-    req.on('error', function(err) {
-      console.error('[KeepAlive] Ошибка пинга:', err.message);
-    });
-    req.end();
-  }, 10 * 60 * 1000); // каждые 10 минут
-
-  console.log('[KeepAlive] ✅ Запущен, пингую каждые 10 минут: ' + url);
-}
-
-module.exports = keepAlive;
+console.log('[Ping] Запущен — пингую каждые 14 минут');
